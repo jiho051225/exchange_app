@@ -2,16 +2,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { Place } from '@/lib/types';
 
-declare global { interface Window { google?: any } }
+declare global { interface Window { google?: any; __triplogGoogleMapsReady?: () => void } }
 let googlePromise: Promise<any> | null = null;
 function loadGoogle(key: string): Promise<any> {
-  if (window.google?.maps) return Promise.resolve(window.google);
+  if (window.google?.maps?.Map && window.google?.maps?.importLibrary) return Promise.resolve(window.google);
   if (!googlePromise) googlePromise = new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&libraries=places&language=ko&loading=async`;
-    script.async=true;script.onload=()=>resolve(window.google);script.onerror=()=>reject(Error('Google 지도를 불러오지 못했습니다.'));
+    const finish=(error?:Error)=>{
+      delete window.__triplogGoogleMapsReady;
+      if(error){script.remove();reject(error);return;}
+      if(!window.google?.maps?.Map) {script.remove();reject(Error('Google 지도 API가 준비되지 않았습니다.'));return;}
+      resolve(window.google);
+    };
+    window.__triplogGoogleMapsReady=()=>finish();
+    script.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&libraries=places&language=ko&loading=async&callback=__triplogGoogleMapsReady`;
+    script.async=true;script.onerror=()=>finish(Error('Google 지도를 불러오지 못했습니다.'));
     document.head.appendChild(script);
   });
+  googlePromise.catch(()=>{googlePromise=null;});
   return googlePromise;
 }
 export async function ensureGoogle() {

@@ -6,6 +6,7 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 export const online = Boolean(url && key);
 const supabase: SupabaseClient | null = online ? createClient(url!, key!) : null;
+let ownerPromise: Promise<string> | null = null;
 const STORAGE = 'triplog-v1';
 const OWNER = 'triplog-owner-v1';
 
@@ -22,14 +23,23 @@ function readCache(): Cache {
   catch { return { records: [], comments: [] }; }
 }
 function writeCache(cache: Cache) { localStorage.setItem(STORAGE, JSON.stringify(cache)); }
+export async function getExistingOwner(): Promise<string | null> {
+  if (!supabase) return getOwner();
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  return data.session?.user.id ?? null;
+}
 export async function getOwner(): Promise<string> {
   if (supabase) {
-    const { data: sessionResult, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) throw sessionError;
-    if (sessionResult.session?.user.id) return sessionResult.session.user.id;
-    const { data, error } = await supabase.auth.signInAnonymously();
-    if (error || !data.user) throw error || Error('익명 사용자를 만들지 못했습니다.');
-    return data.user.id;
+    if (!ownerPromise) ownerPromise = (async()=>{
+      const { data: sessionResult, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (sessionResult.session?.user.id) return sessionResult.session.user.id;
+      const { data, error } = await supabase.auth.signInAnonymously();
+      if (error || !data.user) throw error || Error('익명 사용자를 만들지 못했습니다.');
+      return data.user.id;
+    })().finally(()=>{ownerPromise=null;});
+    return ownerPromise;
   }
   let owner = localStorage.getItem(OWNER);
   if (!owner) { owner = uid(); localStorage.setItem(OWNER, owner); }

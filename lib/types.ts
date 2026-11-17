@@ -1,7 +1,7 @@
 export type Place = { id: string; name: string; address: string; lat: number; lng: number };
-export type Stop = { id: string; place: Place; day: number; order: number; time: string; note: string; tip: string; rating: number; photos: string[]; transportToNext: string };
+export type Stop = { id: string; place: Place; day: number; order: number; time: string; note: string; tip: string; rating: number; photos: string[]; transportToNext: string | string[] };
 export type PlacePayload = { place: Place; visitDate: string; note: string; tip: string; rating: number; photos: string[] };
-export type TripPayload = { title: string; startDate: string; endDate: string; intro: string; stops: Stop[] };
+export type TripPayload = { title: string; startDate: string; endDate: string; intro: string; stops: Stop[]; dayStartTransports?: Record<string, string[]> };
 export type RecordEntry = {
   id: string; owner: string; kind: 'place' | 'trip'; status: 'draft' | 'public';
   payload: PlacePayload | TripPayload; createdAt: string; updatedAt: string;

@@ -1,4 +1,14 @@
-export type Place = { id: string; name: string; address: string; lat: number; lng: number };
+export const placeCategories = [
+  { id: 'culture', label: '관광·문화', icon: '🏛️', color: '#7356b8' },
+  { id: 'food', label: '음식·카페', icon: '🍽️', color: '#d96b36' },
+  { id: 'stay', label: '숙소', icon: '🛏️', color: '#2878b8' },
+  { id: 'nature', label: '자연·야외', icon: '🌿', color: '#31865b' },
+  { id: 'life', label: '생활·편의', icon: '🧺', color: '#b04770' },
+  { id: 'other', label: '기타', icon: '📍', color: '#687782' },
+] as const;
+export type PlaceCategoryId = typeof placeCategories[number]['id'];
+export type Place = { id: string; name: string; address: string; lat: number; lng: number; category?: PlaceCategoryId };
+export const getPlaceCategory = (place: Place) => placeCategories.find(category => category.id === place.category) ?? placeCategories[5];
 export type Stop = { id: string; place: Place; day: number; order: number; time: string; note: string; tip: string; rating: number; photos: string[]; transportToNext: string | string[] };
 export type PlacePayload = { place: Place; visitDate: string; note: string; tip: string; rating: number; photos: string[] };
 export type TripPayload = { title: string; startDate: string; endDate: string; intro: string; stops: Stop[]; dayStartTransports?: Record<string, string[]> };

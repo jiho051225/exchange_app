@@ -28,7 +28,7 @@ export async function ensureGoogle() {
   return loadGoogle(key);
 }
 
-export function PlaceSearch({ onSelect, placeholder='도시, 국가, 장소 검색', biasBounds }: { onSelect:(place:Place)=>void; placeholder?:string; biasBounds?:any }) {
+export function PlaceSearch({ onSelect, placeholder='도시, 국가, 장소 검색', biasBounds, compact=false }: { onSelect:(place:Place)=>void; placeholder?:string; biasBounds?:any; compact?:boolean }) {
   const host=useRef<HTMLDivElement>(null);
   const autocomplete=useRef<any>(null);
   const biasBoundsRef=useRef(biasBounds);
@@ -64,7 +64,7 @@ export function PlaceSearch({ onSelect, placeholder='도시, 국가, 장소 검�
     return ()=>{active=false;};
   },[placeholder]);
   useEffect(()=>{if(autocomplete.current&&biasBounds)autocomplete.current.locationBias=biasBounds;},[biasBounds]);
-  return <div className="search-area"><div ref={host} className={googleReady?'google-search':'hidden'} />{!googleReady&&<input className="input" value={query} onChange={e=>setQuery(e.target.value)} placeholder={placeholder} aria-label="장소 검색" />}{error&&<p className="field-error">{error}</p>}{!googleReady&&<p className="hint">Google API 키를 설정하면 실제 장소 검색이 활성화됩니다. 아래 예시 장소를 선택해 화면을 확인할 수 있습니다.</p>}{!googleReady&&<DemoResults query={query} onSelect={onSelect}/>}</div>;
+  return <div className="search-area"><div ref={host} className={googleReady?'google-search':'hidden'} />{!googleReady&&<input className="input" value={query} onChange={e=>setQuery(e.target.value)} placeholder={placeholder} aria-label="장소 검색" />}{error&&<p className="field-error">{error}</p>}{!googleReady&&<p className="hint">Google API 키를 설정하면 실제 장소 검색이 활성화됩니다. 아래 예시 장소를 선택해 화면을 확인할 수 있습니다.</p>}{!googleReady&&(!compact||query.trim())&&<DemoResults query={query} onSelect={onSelect}/>}</div>;
 }
 import { demoPlaces } from '@/lib/types';
 function DemoResults({query,onSelect}:{query:string;onSelect:(p:Place)=>void}) {
@@ -75,7 +75,7 @@ function DemoResults({query,onSelect}:{query:string;onSelect:(p:Place)=>void}) {
 type TripMapStop = { place: Place; day: number; order: number };
 const circledNumbers = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
 
-export default function MapView({places,onSelect,route,tripStops,showLegend=false,onViewportChange,showScale=false}:{places:Place[];onSelect?:(p:Place)=>void;route?:Place[];tripStops?:TripMapStop[];showLegend?:boolean;onViewportChange?:(bounds:any)=>void;showScale?:boolean}) {
+export default function MapView({places,onSelect,route,tripStops,focusPlace,showLegend=false,onViewportChange,showScale=false}:{places:Place[];onSelect?:(p:Place)=>void;route?:Place[];tripStops?:TripMapStop[];focusPlace?:Place|null;showLegend?:boolean;onViewportChange?:(bounds:any)=>void;showScale?:boolean}) {
   const container=useRef<HTMLDivElement>(null);
   const map=useRef<any>(null);
   const markers=useRef<any[]>([]);
@@ -103,12 +103,15 @@ export default function MapView({places,onSelect,route,tripStops,showLegend=fals
       const days=new Map<number,TripMapStop[]>();tripStops.forEach(stop=>days.set(stop.day,[...(days.get(stop.day)||[]),stop]));
       days.forEach(dayStops=>{if(dayStops.length<2)return;const line=new g.maps.Polyline({path:dayStops.map(stop=>({lat:stop.place.lat,lng:stop.place.lng})),map:map.current,strokeColor:'#2883c6',strokeWeight:4,strokeOpacity:.85,icons:[{icon:{path:g.maps.SymbolPath.FORWARD_CLOSED_ARROW,scale:3,strokeColor:'#2883c6',fillColor:'#2883c6'},offset:'50%'}]});lines.current.push(line);});
     }else{
-      places.forEach(p=>{const category=getPlaceCategory(p);const marker=new g.maps.Marker({position:{lat:p.lat,lng:p.lng},map:map.current,title:`${category.label} · ${p.name}`,label:{text:category.icon,color:'#fff',fontSize:'12px'},icon:{path:g.maps.SymbolPath.CIRCLE,scale:13,fillColor:category.color,fillOpacity:1,strokeWeight:2,strokeColor:'#fff'}});marker.addListener('click',()=>onSelect?.(p));markers.current.push(marker);});
+      const shownPlaces=focusPlace&&!places.some(p=>p.id===focusPlace.id)?[...places,focusPlace]:places;
+      shownPlaces.forEach(p=>{const category=getPlaceCategory(p);const marker=new g.maps.Marker({position:{lat:p.lat,lng:p.lng},map:map.current,title:`${category.label} · ${p.name}`,label:{text:category.icon,color:'#fff',fontSize:'12px'},icon:{path:g.maps.SymbolPath.CIRCLE,scale:13,fillColor:p.id===focusPlace?.id?'#e66a30':category.color,fillOpacity:1,strokeWeight:2,strokeColor:'#fff'}});marker.addListener('click',()=>onSelect?.(p));markers.current.push(marker);});
       if(route&&route.length>1)lines.current.push(new g.maps.Polyline({path:route.map(p=>({lat:p.lat,lng:p.lng})),map:map.current,strokeColor:'#2883c6',strokeWeight:4,strokeOpacity:.85,icons:[{icon:{path:g.maps.SymbolPath.FORWARD_CLOSED_ARROW,scale:3,strokeColor:'#2883c6',fillColor:'#2883c6'},offset:'50%'}]}));
     }
-    if(places.length){const bounds=new g.maps.LatLngBounds();places.forEach(p=>bounds.extend({lat:p.lat,lng:p.lng}));map.current.fitBounds(bounds);if(places.length===1)map.current.setZoom(14);}
-  },[places,route,tripStops,mode,onSelect]);
+    if(!focusPlace&&places.length){const bounds=new g.maps.LatLngBounds();places.forEach(p=>bounds.extend({lat:p.lat,lng:p.lng}));map.current.fitBounds(bounds);if(places.length===1)map.current.setZoom(14);}
+  },[places,route,tripStops,focusPlace,mode,onSelect]);
+  useEffect(()=>{if(mode==='google'&&map.current&&focusPlace){map.current.panTo({lat:focusPlace.lat,lng:focusPlace.lng});map.current.setZoom(15)}},[focusPlace,mode]);
   const fallback=mode!=='google';
+  const displayPlaces=focusPlace&&!places.some(p=>p.id===focusPlace.id)?[...places,focusPlace]:places;
   const fallbackPoint=(index:number)=>`${22+(index*23)%62},${28+(index*19)%52}`;
   const fallbackDayGroups=new Map<number,TripMapStop[]>();
   tripStops?.forEach(stop=>fallbackDayGroups.set(stop.day,[...(fallbackDayGroups.get(stop.day)||[]),stop]));
@@ -117,6 +120,6 @@ export default function MapView({places,onSelect,route,tripStops,showLegend=fals
     : route&&route.length>1?[route.map((_,index)=>fallbackPoint(index)).join(' ')]:[];
   const fallbackMarkers=tripStops
     ? tripStops.map((stop,index)=>{const label=`${stop.day}-${circledNumbers[stop.order]||stop.order+1}`;return <button key={`${stop.place.id}-${stop.day}-${stop.order}`} className="map-pin map-trip-pin" style={{left:`${22+(index*23)%62}%`,top:`${28+(index*19)%52}%`} as CSSProperties} aria-label={`${stop.day}일차 ${stop.order+1}번째 장소: ${stop.place.name}`} title={`${label} · ${stop.place.name}`}><span>{label}</span></button>})
-    : places.map((p,index)=>{const category=getPlaceCategory(p);return <button key={`${p.id}-${index}`} className="map-pin" style={{left:`${22+(index*23)%62}%`,top:`${28+(index*19)%52}%`,'--pin-color':category.color} as CSSProperties} onClick={()=>onSelect?.(p)} aria-label={`${category.label}: ${p.name} 장소 보기`} title={`${category.label} · ${p.name}`}><span>{category.icon}</span></button>});
-  return <div className="map-wrap"><div ref={container} className={fallback?'map-canvas map-hidden':'map-canvas'} />{fallback&&<div className="illustrated-map"><div className="map-street street-a"/><div className="map-street street-b"/><div className="map-street street-c"/><div className="map-park park-a"/><div className="map-park park-b"/><span className="map-label label-a">베를린</span><span className="map-label label-b">파리</span>{fallbackRoutePaths.length>0&&<svg className="fallback-route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs><marker id="trip-route-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#2684c9"/></marker></defs>{fallbackRoutePaths.map((points,index)=><polyline key={index} points={points} fill="none" stroke="#2684c9" strokeWidth="1.2" strokeDasharray="2 1" markerEnd="url(#trip-route-arrow)" vectorEffect="non-scaling-stroke"/>)}</svg>}{fallbackMarkers}{!places.length&&<div className="map-empty">아직 기록된 장소가 없어요.<br/>첫 장소를 남겨 지도를 채워보세요.</div>}{route&&route.length>1&&<div className="route-note">방문 순서 {route.map(p=>p.name).join(' → ')}</div>}</div>}{showLegend&&<div className="category-legend" aria-label="장소 종류 범례">{placeCategories.map(category=><span key={category.id}><i style={{backgroundColor:category.color}}>{category.icon}</i>{category.label}</span>)}</div>}</div>;
+    : displayPlaces.map((p,index)=>{const category=getPlaceCategory(p);return <button key={`${p.id}-${index}`} className="map-pin" style={{left:`${22+(index*23)%62}%`,top:`${28+(index*19)%52}%`,'--pin-color':p.id===focusPlace?.id?'#e66a30':category.color} as CSSProperties} onClick={()=>onSelect?.(p)} aria-label={`${category.label}: ${p.name} 장소 보기`} title={`${category.label} · ${p.name}`}><span>{category.icon}</span></button>});
+  return <div className="map-wrap"><div ref={container} className={fallback?'map-canvas map-hidden':'map-canvas'} />{fallback&&<div className="illustrated-map"><div className="map-street street-a"/><div className="map-street street-b"/><div className="map-street street-c"/><div className="map-park park-a"/><div className="map-park park-b"/><span className="map-label label-a">베를린</span><span className="map-label label-b">파리</span>{fallbackRoutePaths.length>0&&<svg className="fallback-route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs><marker id="trip-route-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#2684c9"/></marker></defs>{fallbackRoutePaths.map((points,index)=><polyline key={index} points={points} fill="none" stroke="#2684c9" strokeWidth="1.2" strokeDasharray="2 1" markerEnd="url(#trip-route-arrow)" vectorEffect="non-scaling-stroke"/>)}</svg>}{fallbackMarkers}{!displayPlaces.length&&<div className="map-empty">아직 기록된 장소가 없어요.<br/>첫 장소를 남겨 지도를 채워보세요.</div>}{route&&route.length>1&&<div className="route-note">방문 순서 {route.map(p=>p.name).join(' → ')}</div>}</div>}{showLegend&&<div className="category-legend" aria-label="장소 종류 범례">{placeCategories.map(category=><span key={category.id}><i style={{backgroundColor:category.color}}>{category.icon}</i>{category.label}</span>)}</div>}</div>;
 }
